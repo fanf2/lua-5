@@ -2377,6 +2377,7 @@ static struct luaL_reg metapattreg[] = {
   {"__sub", diff_l},
   {"__mul", concat_l},
   {"__div", rcapture_l},
+  {"__mod", fold_l},
   {"__unm", unm_l},
   {"__len", pattand_l},
   {NULL, NULL}
