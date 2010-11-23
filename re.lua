@@ -163,6 +163,8 @@ local exp = m.P{ "Exp",
         * (#exp_follow + patt_error);
   Prefix = "&" * S * m.V"Prefix" / mt.__len
          + "!" * S * m.V"Prefix" / mt.__unm
+         + ".." * S * m.V"Prefix" /
+                   function (p) return m.P{ p + 1 * m.V(1) } end
          + m.V"Suffix";
   Suffix = m.Cf(m.V"Primary" * S *
           ( ( m.P"+" * m.Cc(1, mt.__pow)
