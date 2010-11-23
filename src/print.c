@@ -1,23 +1,21 @@
 /*
-** $Id: print.c,v 1.44 2003/04/07 20:34:20 lhf Exp $
+** $Id: print.c,v 1.54 2006/01/11 22:49:27 lhf Exp $
 ** print bytecodes
 ** See Copyright Notice in lua.h
 */
 
+#include <ctype.h>
 #include <stdio.h>
 
-#if 0
-#define DEBUG_PRINT
-#endif
-
-#ifndef LUA_OPNAMES
-#define LUA_OPNAMES
-#endif
+#define luac_c
+#define LUA_CORE
 
 #include "ldebug.h"
 #include "lobject.h"
 #include "lopcodes.h"
 #include "lundump.h"
+
+#define PrintFunction	luaU_print
 
 #define Sizeof(x)	((int)sizeof(x))
 #define VOID(p)		((const void*)(p))
@@ -38,7 +36,10 @@ static void PrintString(const Proto* f, int n)
    case '\r': printf("\\r"); break;
    case '\t': printf("\\t"); break;
    case '\v': printf("\\v"); break;
-   default: putchar(*s); break;
+   default:	if (isprint((unsigned char)*s))
+   			printf("%c",*s);
+		else
+			printf("\\%03u",(unsigned char)*s);
   }
  }
  putchar('"');
@@ -46,17 +47,20 @@ static void PrintString(const Proto* f, int n)
 
 static void PrintConstant(const Proto* f, int i)
 {
- const TObject* o=&f->k[i];
+ const TValue* o=&f->k[i];
  switch (ttype(o))
  {
+  case LUA_TNIL:
+	printf("nil");
+	break;
+  case LUA_TBOOLEAN:
+	printf(bvalue(o) ? "true" : "false");
+	break;
   case LUA_TNUMBER:
 	printf(LUA_NUMBER_FMT,nvalue(o));
 	break;
   case LUA_TSTRING:
 	PrintString(f,i);
-	break;
-  case LUA_TNIL:
-	printf("nil");
 	break;
   default:				/* cannot happen */
 	printf("? type=%d",ttype(o));
@@ -75,25 +79,30 @@ static void PrintCode(const Proto* f)
   int a=GETARG_A(i);
   int b=GETARG_B(i);
   int c=GETARG_C(i);
-  int bc=GETARG_Bx(i);
-  int sbc=GETARG_sBx(i);
+  int bx=GETARG_Bx(i);
+  int sbx=GETARG_sBx(i);
   int line=getline(f,pc);
-#if 0
-  printf("%0*lX",Sizeof(i)*2,i);
-#endif
   printf("\t%d\t",pc+1);
   if (line>0) printf("[%d]\t",line); else printf("[-]\t");
   printf("%-9s\t",luaP_opnames[o]);
   switch (getOpMode(o))
   {
-   case iABC:	printf("%d %d %d",a,b,c); break;
-   case iABx:	printf("%d %d",a,bc); break;
-   case iAsBx:	printf("%d %d",a,sbc); break;
+   case iABC:
+    printf("%d",a);
+    if (getBMode(o)!=OpArgN) printf(" %d",ISK(b) ? (-1-INDEXK(b)) : b);
+    if (getCMode(o)!=OpArgN) printf(" %d",ISK(c) ? (-1-INDEXK(c)) : c);
+    break;
+   case iABx:
+    if (getBMode(o)==OpArgK) printf("%d %d",a,-1-bx); else printf("%d %d",a,bx);
+    break;
+   case iAsBx:
+    if (o==OP_JMP) printf("%d",sbx); else printf("%d %d",a,sbx);
+    break;
   }
   switch (o)
   {
    case OP_LOADK:
-    printf("\t; "); PrintConstant(f,bc);
+    printf("\t; "); PrintConstant(f,bx);
     break;
    case OP_GETUPVAL:
    case OP_SETUPVAL:
@@ -101,11 +110,11 @@ static void PrintCode(const Proto* f)
     break;
    case OP_GETGLOBAL:
    case OP_SETGLOBAL:
-    printf("\t; %s",svalue(&f->k[bc]));
+    printf("\t; %s",svalue(&f->k[bx]));
     break;
    case OP_GETTABLE:
    case OP_SELF:
-    if (c>=MAXSTACK) { printf("\t; "); PrintConstant(f,c-MAXSTACK); }
+    if (ISK(c)) { printf("\t; "); PrintConstant(f,INDEXK(c)); }
     break;
    case OP_SETTABLE:
    case OP_ADD:
@@ -116,21 +125,25 @@ static void PrintCode(const Proto* f)
    case OP_EQ:
    case OP_LT:
    case OP_LE:
-    if (b>=MAXSTACK || c>=MAXSTACK)
+    if (ISK(b) || ISK(c))
     {
      printf("\t; ");
-     if (b>=MAXSTACK) PrintConstant(f,b-MAXSTACK); else printf("-");
+     if (ISK(b)) PrintConstant(f,INDEXK(b)); else printf("-");
      printf(" ");
-     if (c>=MAXSTACK) PrintConstant(f,c-MAXSTACK);
+     if (ISK(c)) PrintConstant(f,INDEXK(c)); else printf("-");
     }
     break;
    case OP_JMP:
    case OP_FORLOOP:
-   case OP_TFORPREP:
-    printf("\t; to %d",sbc+pc+2);
+   case OP_FORPREP:
+    printf("\t; to %d",sbx+pc+2);
     break;
    case OP_CLOSURE:
-    printf("\t; %p",VOID(f->p[bc]));
+    printf("\t; %p",VOID(f->p[bx]));
+    break;
+   case OP_SETLIST:
+    if (c==0) printf("\t; %d",(int)code[++pc]);
+    else printf("\t; %d",c);
     break;
    default:
     break;
@@ -139,42 +152,36 @@ static void PrintCode(const Proto* f)
  }
 }
 
-static const char* Source(const Proto* f)
-{
- const char* s=getstr(f->source);
- if (*s=='@' || *s=='=')
-  return s+1;
- else if (*s==LUA_SIGNATURE[0])
-  return "(bstring)";
- else
-  return "(string)";
-}
-
-#define IsMain(f)	(f->lineDefined==0)
-
 #define SS(x)	(x==1)?"":"s"
 #define S(x)	x,SS(x)
 
 static void PrintHeader(const Proto* f)
 {
- printf("\n%s <%s:%d> (%d instruction%s, %d bytes at %p)\n",
- 	IsMain(f)?"main":"function",Source(f),f->lineDefined,
+ const char* s=getstr(f->source);
+ if (*s=='@' || *s=='=')
+  s++;
+ else if (*s==LUA_SIGNATURE[0])
+  s="(bstring)";
+ else
+  s="(string)";
+ printf("\n%s <%s:%d,%d> (%d instruction%s, %d bytes at %p)\n",
+ 	(f->linedefined==0)?"main":"function",s,
+	f->linedefined,f->lastlinedefined,
 	S(f->sizecode),f->sizecode*Sizeof(Instruction),VOID(f));
- printf("%d%s param%s, %d stack%s, %d upvalue%s, ",
-	f->numparams,f->is_vararg?"+":"",SS(f->numparams),S(f->maxstacksize),
-	S(f->nups));
+ printf("%d%s param%s, %d slot%s, %d upvalue%s, ",
+	f->numparams,f->is_vararg?"+":"",SS(f->numparams),
+	S(f->maxstacksize),S(f->nups));
  printf("%d local%s, %d constant%s, %d function%s\n",
 	S(f->sizelocvars),S(f->sizek),S(f->sizep));
 }
 
-#ifdef DEBUG_PRINT
 static void PrintConstants(const Proto* f)
 {
  int i,n=f->sizek;
  printf("constants (%d) for %p:\n",n,VOID(f));
  for (i=0; i<n; i++)
  {
-  printf("\t%d\t",i);
+  printf("\t%d\t",i+1);
   PrintConstant(f,i);
   printf("\n");
  }
@@ -187,7 +194,7 @@ static void PrintLocals(const Proto* f)
  for (i=0; i<n; i++)
  {
   printf("\t%d\t%s\t%d\t%d\n",
-  i,getstr(f->locvars[i].varname),f->locvars[i].startpc,f->locvars[i].endpc);
+  i,getstr(f->locvars[i].varname),f->locvars[i].startpc+1,f->locvars[i].endpc+1);
  }
 }
 
@@ -201,17 +208,17 @@ static void PrintUpvalues(const Proto* f)
   printf("\t%d\t%s\n",i,getstr(f->upvalues[i]));
  }
 }
-#endif
 
-void luaU_print(const Proto* f)
+void PrintFunction(const Proto* f, int full)
 {
  int i,n=f->sizep;
  PrintHeader(f);
  PrintCode(f);
-#ifdef DEBUG_PRINT
- PrintConstants(f);
- PrintLocals(f);
- PrintUpvalues(f);
-#endif
- for (i=0; i<n; i++) luaU_print(f->p[i]);
+ if (full)
+ {
+  PrintConstants(f);
+  PrintLocals(f);
+  PrintUpvalues(f);
+ }
+ for (i=0; i<n; i++) PrintFunction(f->p[i],full);
 }
