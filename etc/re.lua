@@ -24,7 +24,7 @@ local any = m.P(1)
 
 
 -- Pre-defined names
-local Predef = { nl = m.P"\n" }
+local Predef = { nl = mm.P"\n" }
 
 
 local mem
@@ -102,7 +102,7 @@ local function equalcap (s, i, c)
 end
 
 
-local S = (m.S(" \f\n\r\t\v") + "--" * (any - Predef.nl)^0)^0
+local S = (m.S(" \f\n\r\t\v") + "--" * (any - "\n")^0)^0
 
 local name = m.R("AZ", "az") * m.R("AZ", "az", "__", "09")^0
 
