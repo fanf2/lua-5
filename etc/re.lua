@@ -128,6 +128,10 @@ local defined = "%" * Identifier / function (c,Defs)
   return cat
 end
 
+local def_or_var = Identifier / function (n,Defs)
+  return (Defs and Defs[n]) or (#n > 2 and Predef[n]) or m.V(n)
+end
+
 local Range = m.Cs(any * (m.P"-"/"") * (any - "]")) / mm.R
 
 local item = defined + Range + m.C(any)
@@ -185,7 +189,7 @@ local exp = m.P{ "Exp",
             + "{~" * m.V"Exp" * "~}" / mm.Cs
             + "{" * m.V"Exp" * "}" / mm.C
             + m.P"." * m.Cc(any)
-            + name * -arrow / mm.V
+            + def_or_var * -arrow / mm.V
             + "<" * name * ">" / mm.V;
   Definition = Identifier * arrow * m.V"Exp";
   Grammar = m.Cf(m.V"Definition" / firstdef * m.Cg(m.V"Definition")^0, adddef) /
