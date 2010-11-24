@@ -2245,6 +2245,34 @@ static int getcaptures (lua_State *L, const char *s, const char *r, int ptop) {
 /* }====================================================== */
 
 
+static int search_l (lua_State *L) {
+  Instruction *arg, *next, *loop, *ret;
+  CharsetTag st;
+  int alen, nlen = 2, size = 0;
+  /* lame implementation */
+  lua_settop(L, 2);
+  lua_pushvalue(L, 2);  /* [3] = arg2 because [2] gets clobbered */
+  lua_pushnumber(L, 1);  /* [4] */
+  /* [2] = next = P(1) * V(1) */
+  next = newpatt(L, nlen);
+  setinstaux(next, IAny, 0, 1); /* P(1) */
+  setinst(next+1, IOpenCall, value2fenv(L, 4)); /* V(1) */
+  lua_replace(L, 2);  /* absolute stack position needed for union */
+  /* [5] = loop = P{ arg2 + next } */
+  lua_newtable(L);
+  arg = getpatt(L, 3, &alen);
+  tocharset(next, &st);
+  separateparts(L, arg, alen, nlen, &size, &st); /* union */
+  lua_rawseti(L, 5, 1);
+  loop = fix_l(L, 5);
+  /* [6] = ret = arg1 * loop */
+  getpatt(L, 1, &alen);
+  ret = newpatt(L, alen + pattsize(L, 5));
+  addpatt(L, ret + addpatt(L, ret, 1), 5);
+  return 1;
+}
+
+
 static int version_l (lua_State *L) {
   lua_pushstring(L, VERSION);
   return 1;
@@ -2380,6 +2408,7 @@ static struct luaL_reg metapattreg[] = {
   {"__mod", fold_l},
   {"__unm", unm_l},
   {"__len", pattand_l},
+  {"__concat", search_l},
   {NULL, NULL}
 };
 
