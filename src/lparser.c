@@ -53,7 +53,14 @@ typedef struct BlockCnt {
 static void chunk (LexState *ls);
 static void expr (LexState *ls, expdesc *v);
 
+/*
+** forward declarations for lambda bodies
+*/
 static void retstat (LexState *ls);
+static void ifstat (LexState *ls, int line);
+static void forstat (LexState *ls, int line);
+static void whilestat (LexState *ls, int line);
+static void repeatstat (LexState *ls, int line);
 
 
 static void anchor_token (LexState *ls) {
@@ -577,9 +584,9 @@ static void parlist (LexState *ls) {
 
 static void body (LexState *ls, expdesc *e, int needself, int line) {
   /* body ->  `(' parlist `)' chunk END */
-  FuncState new_fs;
-  open_func(ls, &new_fs);
-  new_fs.f->linedefined = line;
+  FuncState fs;
+  open_func(ls, &fs);
+  fs.f->linedefined = line;
   checknext(ls, '(');
   if (needself) {
     new_localvarliteral(ls, "self", 0);
@@ -589,9 +596,68 @@ static void body (LexState *ls, expdesc *e, int needself, int line) {
   checknext(ls, ')');
   chunk(ls);
   check_match(ls, TK_END, TK_FUNCTION, line);
-  new_fs.f->lastlinedefined = ls->linenumber;
+  fs.f->lastlinedefined = ls->linenumber;
   close_func(ls);
-  pushclosure(ls, &new_fs, e);
+  pushclosure(ls, &fs, e);
+}
+
+
+static void lambda (LexState *ls, expdesc *e) {
+  FuncState fs;
+  int line;
+  open_func(ls, &fs);
+  fs.f->linedefined = ls->linenumber;
+  checknext(ls, '\\');
+  parlist(ls);
+  line = ls->linenumber;
+  switch (ls->t.token) {
+    case '\\': {  /* lambda -> "\" parlist lambda */
+      expdesc re;
+      int reg;
+      enterlevel(ls);
+      lambda(ls, &re);
+      leavelevel(ls);
+      /* return one single value */
+      reg = luaK_exp2anyreg(&fs, &re);
+      luaK_ret(&fs, reg, 1);
+      break;
+    }
+    case '(': {  /* lambda -> "\" parlist "(" explist ")" */
+      retstat(ls);  /* skips "(" for us */
+      check_match(ls, ')', '(', line);
+      break;
+    }
+    case TK_DO: {  /* lambda -> "\" parlist DO chunk END */
+      luaX_next(ls);
+      chunk(ls);
+      check_match(ls, TK_END, TK_DO, line);
+      break;
+    }
+    case TK_IF: {  /* lambda -> "\" parlist ifstat*/
+      ifstat(ls, line);
+      break;
+    }
+    case TK_FOR: {  /* lambda -> "\" parlist forstat*/
+      forstat(ls, line);
+      break;
+    }
+    case TK_WHILE: {  /* lambda -> "\" parlist whilestat */
+      whilestat(ls, line);
+      break;
+    }
+    case TK_REPEAT: {  /* lambda -> "\" parlist repeatstat END */
+      repeatstat(ls, line);
+      check_match(ls, TK_END, TK_REPEAT, line); /* weird */
+      break;
+    }
+    default:
+      luaX_syntaxerror(ls, "expected lambda body starting with "
+                           LUA_QL("(") " or " LUA_QL("\\")
+                           " or block statement");
+  }
+  fs.f->lastlinedefined = ls->linenumber;
+  close_func(ls);
+  pushclosure(ls, &fs, e);
 }
 
 
@@ -605,80 +671,6 @@ static int explist1 (LexState *ls, expdesc *v) {
     n++;
   }
   return n;
-}
-
-
-static void retexp (LexState *ls, expdesc *e, int nret) {
-  FuncState *fs = ls->fs;
-  int first;  /* first register of nret returned values */
-  if (nret == 0)  /* no return values? */
-    first = 0;
-  else if (hasmultret(e->k)) {  /* indeterminate number? */
-    luaK_setmultret(fs, e);
-    if (e->k == VCALL && nret == 1) {  /* tail call? */
-      SET_OPCODE(getcode(fs,e), OP_TAILCALL);
-      lua_assert(GETARG_A(getcode(fs,e)) == fs->nactvar);
-    }
-    first = fs->nactvar;
-    nret = LUA_MULTRET;  /* return all values */
-  }
-  else if (nret == 1)  /* only one single value? */
-    first = luaK_exp2anyreg(fs, e);
-  else {
-    luaK_exp2nextreg(fs, e);  /* values must go to the `stack' */
-    first = fs->nactvar;  /* return all `active' values */
-    lua_assert(nret == fs->freereg - first);
-  }
-  luaK_ret(fs, first, nret);
-}
-
-
-static void lambda (LexState *ls, expdesc *e) {
-  FuncState new_fs;
-  int line = ls->linenumber;
-  open_func(ls, &new_fs);
-  new_fs.f->linedefined = line;
-  checknext(ls, '\\');
-  parlist(ls);
-  switch (ls->t.token) {
-    case TK_ARROW: {  /* lambda -> "\" parlist "->" exp */
-      expdesc re;
-      luaX_next(ls);
-      expr(ls, &re);
-      retexp(ls, &re, 1);
-      break;
-    }
-    case '\\': {  /* lambda -> "\" parlist lambda */
-      expdesc re;
-      enterlevel(ls);
-      lambda(ls, &re);
-      leavelevel(ls);
-      retexp(ls, &re, 1);
-      break;
-    }
-    case '(': {  /* lambda -> "\" parlist "(" exp ")" */
-      retstat(ls);  /* skips "(" for us */
-      check_match(ls, ')', '(', line);
-      break;
-    }
-    case TK_RETURN: {  /* lambda -> "\" parlist RETURN explist END */
-      retstat(ls);  /* skips RETURN for us */
-      check_match(ls, TK_END, TK_RETURN, line);
-      break;
-    }
-    case TK_DO: {  /* lambda -> "\" parlist DO chunk END */
-      luaX_next(ls);
-      chunk(ls);
-      check_match(ls, TK_END, TK_DO, line);
-      break;
-    }
-    default:
-      luaX_syntaxerror(ls, LUA_QL("->") " or " LUA_QL("return") " or "
-                           LUA_QL("do") "expected");
-  }
-  new_fs.f->lastlinedefined = ls->linenumber;
-  close_func(ls);
-  pushclosure(ls, &new_fs, e);
 }
 
 
@@ -1322,14 +1314,34 @@ static void exprstat (LexState *ls) {
 
 static void retstat (LexState *ls) {
   /* stat -> RETURN explist */
+  FuncState *fs = ls->fs;
   expdesc e;
-  int nret;
+  int first, nret;  /* registers with returned values */
   luaX_next(ls);  /* skip RETURN */
-  if (block_follow(ls->t.token) || ls->t.token == ';')
-    nret = 0;  /* return no values */
-  else
-    nret = explist1(ls, &e);  /* one or more return values */
-  retexp(ls, &e, nret);
+  if (block_follow(ls->t.token) || ls->t.token == ';' || ls->t.token == ')')
+    first = nret = 0;  /* return no values */
+  else {
+    nret = explist1(ls, &e);  /* optional return values */
+    if (hasmultret(e.k)) {
+      luaK_setmultret(fs, &e);
+      if (e.k == VCALL && nret == 1) {  /* tail call? */
+        SET_OPCODE(getcode(fs,&e), OP_TAILCALL);
+        lua_assert(GETARG_A(getcode(fs,&e)) == fs->nactvar);
+      }
+      first = fs->nactvar;
+      nret = LUA_MULTRET;  /* return all values */
+    }
+    else {
+      if (nret == 1)  /* only one single value? */
+        first = luaK_exp2anyreg(fs, &e);
+      else {
+        luaK_exp2nextreg(fs, &e);  /* values must go to the `stack' */
+        first = fs->nactvar;  /* return all `active' values */
+        lua_assert(nret == fs->freereg - first);
+      }
+    }
+  }
+  luaK_ret(fs, first, nret);
 }
 
 
