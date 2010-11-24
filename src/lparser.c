@@ -53,6 +53,8 @@ typedef struct BlockCnt {
 static void chunk (LexState *ls);
 static void expr (LexState *ls, expdesc *v);
 
+static void retstat (LexState *ls);
+
 
 static void anchor_token (LexState *ls) {
   if (ls->t.token == TK_NAME || ls->t.token == TK_STRING) {
@@ -546,27 +548,27 @@ static void parlist (LexState *ls) {
   Proto *f = fs->f;
   int nparams = 0;
   f->is_vararg = 0;
-  if (ls->t.token != ')') {  /* is `parlist' not empty? */
-    do {
-      switch (ls->t.token) {
-        case TK_NAME: {  /* param -> NAME */
-          new_localvar(ls, str_checkname(ls), nparams++);
-          break;
-        }
-        case TK_DOTS: {  /* param -> `...' */
-          luaX_next(ls);
-#if defined(LUA_COMPAT_VARARG)
-          /* use `arg' as default name */
-          new_localvarliteral(ls, "arg", nparams++);
-          f->is_vararg = VARARG_HASARG | VARARG_NEEDSARG;
-#endif
-          f->is_vararg |= VARARG_ISVARARG;
-          break;
-        }
-        default: luaX_syntaxerror(ls, "<name> or " LUA_QL("...") " expected");
+  do {
+    switch (ls->t.token) {
+      case TK_NAME: {  /* param -> NAME */
+	new_localvar(ls, str_checkname(ls), nparams++);
+	break;
       }
-    } while (!f->is_vararg && testnext(ls, ','));
-  }
+      case TK_DOTS: {  /* param -> `...' */
+	luaX_next(ls);
+#if defined(LUA_COMPAT_VARARG)
+	/* use `arg' as default name */
+	new_localvarliteral(ls, "arg", nparams++);
+	f->is_vararg = VARARG_HASARG | VARARG_NEEDSARG;
+#endif
+	f->is_vararg |= VARARG_ISVARARG;
+	break;
+      }
+      default:
+	if (nparams > 0)
+	  luaX_syntaxerror(ls, "<name> or " LUA_QL("...") " expected");
+    }
+  } while (!f->is_vararg && testnext(ls, ','));
   adjustlocalvars(ls, nparams);
   f->numparams = cast_byte(fs->nactvar - (f->is_vararg & VARARG_HASARG));
   luaK_reserveregs(fs, fs->nactvar);  /* reserve register for parameters */
@@ -586,8 +588,8 @@ static void body (LexState *ls, expdesc *e, int needself, int line) {
   parlist(ls);
   checknext(ls, ')');
   chunk(ls);
-  new_fs.f->lastlinedefined = ls->linenumber;
   check_match(ls, TK_END, TK_FUNCTION, line);
+  new_fs.f->lastlinedefined = ls->linenumber;
   close_func(ls);
   pushclosure(ls, &new_fs, e);
 }
@@ -603,6 +605,80 @@ static int explist1 (LexState *ls, expdesc *v) {
     n++;
   }
   return n;
+}
+
+
+static void retexp (LexState *ls, expdesc *e, int nret) {
+  FuncState *fs = ls->fs;
+  int first;  /* first register of nret returned values */
+  if (nret == 0)  /* no return values? */
+    first = 0;
+  else if (hasmultret(e->k)) {  /* indeterminate number? */
+    luaK_setmultret(fs, e);
+    if (e->k == VCALL && nret == 1) {  /* tail call? */
+      SET_OPCODE(getcode(fs,e), OP_TAILCALL);
+      lua_assert(GETARG_A(getcode(fs,e)) == fs->nactvar);
+    }
+    first = fs->nactvar;
+    nret = LUA_MULTRET;  /* return all values */
+  }
+  else if (nret == 1)  /* only one single value? */
+    first = luaK_exp2anyreg(fs, e);
+  else {
+    luaK_exp2nextreg(fs, e);  /* values must go to the `stack' */
+    first = fs->nactvar;  /* return all `active' values */
+    lua_assert(nret == fs->freereg - first);
+  }
+  luaK_ret(fs, first, nret);
+}
+
+
+static void lambda (LexState *ls, expdesc *e) {
+  FuncState new_fs;
+  int line = ls->linenumber;
+  open_func(ls, &new_fs);
+  new_fs.f->linedefined = line;
+  checknext(ls, '\\');
+  parlist(ls);
+  switch (ls->t.token) {
+    case TK_ARROW: {  /* lambda -> "\" parlist "->" exp */
+      expdesc re;
+      luaX_next(ls);
+      expr(ls, &re);
+      retexp(ls, &re, 1);
+      break;
+    }
+    case '\\': {  /* lambda -> "\" parlist lambda */
+      expdesc re;
+      enterlevel(ls);
+      lambda(ls, &re);
+      leavelevel(ls);
+      retexp(ls, &re, 1);
+      break;
+    }
+    case '(': {  /* lambda -> "\" parlist "(" exp ")" */
+      retstat(ls);  /* skips "(" for us */
+      check_match(ls, ')', '(', line);
+      break;
+    }
+    case TK_RETURN: {  /* lambda -> "\" parlist RETURN explist END */
+      retstat(ls);  /* skips RETURN for us */
+      check_match(ls, TK_END, TK_RETURN, line);
+      break;
+    }
+    case TK_DO: {  /* lambda -> "\" parlist DO chunk END */
+      luaX_next(ls);
+      chunk(ls);
+      check_match(ls, TK_END, TK_DO, line);
+      break;
+    }
+    default:
+      luaX_syntaxerror(ls, LUA_QL("->") " or " LUA_QL("return") " or "
+                           LUA_QL("do") "expected");
+  }
+  new_fs.f->lastlinedefined = ls->linenumber;
+  close_func(ls);
+  pushclosure(ls, &new_fs, e);
 }
 
 
@@ -627,6 +703,10 @@ static void funcargs (LexState *ls, expdesc *f) {
     }
     case '{': {  /* funcargs -> constructor */
       constructor(ls, &args);
+      break;
+    }
+    case '\\': {  /* funcargs -> lambda */
+      lambda(ls, &args);
       break;
     }
     case TK_STRING: {  /* funcargs -> STRING */
@@ -713,7 +793,7 @@ static void primaryexp (LexState *ls, expdesc *v) {
         funcargs(ls, v);
         break;
       }
-      case '(': case TK_STRING: case '{': {  /* funcargs */
+      case '(': case TK_STRING: case '{': case '\\': {  /* funcargs */
         luaK_exp2nextreg(fs, v);
         funcargs(ls, v);
         break;
@@ -726,7 +806,7 @@ static void primaryexp (LexState *ls, expdesc *v) {
 
 static void simpleexp (LexState *ls, expdesc *v) {
   /* simpleexp -> NUMBER | STRING | NIL | true | false | ... |
-                  constructor | FUNCTION body | primaryexp */
+                  constructor | FUNCTION body | lambda | primaryexp */
   switch (ls->t.token) {
     case TK_NUMBER: {
       init_exp(v, VKNUM, 0);
@@ -764,6 +844,10 @@ static void simpleexp (LexState *ls, expdesc *v) {
     case TK_FUNCTION: {
       luaX_next(ls);
       body(ls, v, 0, ls->linenumber);
+      return;
+    }
+    case '\\': {
+      lambda(ls, v);
       return;
     }
     default: {
@@ -1238,34 +1322,14 @@ static void exprstat (LexState *ls) {
 
 static void retstat (LexState *ls) {
   /* stat -> RETURN explist */
-  FuncState *fs = ls->fs;
   expdesc e;
-  int first, nret;  /* registers with returned values */
+  int nret;
   luaX_next(ls);  /* skip RETURN */
   if (block_follow(ls->t.token) || ls->t.token == ';')
-    first = nret = 0;  /* return no values */
-  else {
-    nret = explist1(ls, &e);  /* optional return values */
-    if (hasmultret(e.k)) {
-      luaK_setmultret(fs, &e);
-      if (e.k == VCALL && nret == 1) {  /* tail call? */
-        SET_OPCODE(getcode(fs,&e), OP_TAILCALL);
-        lua_assert(GETARG_A(getcode(fs,&e)) == fs->nactvar);
-      }
-      first = fs->nactvar;
-      nret = LUA_MULTRET;  /* return all values */
-    }
-    else {
-      if (nret == 1)  /* only one single value? */
-        first = luaK_exp2anyreg(fs, &e);
-      else {
-        luaK_exp2nextreg(fs, &e);  /* values must go to the `stack' */
-        first = fs->nactvar;  /* return all `active' values */
-        lua_assert(nret == fs->freereg - first);
-      }
-    }
-  }
-  luaK_ret(fs, first, nret);
+    nret = 0;  /* return no values */
+  else
+    nret = explist1(ls, &e);  /* one or more return values */
+  retexp(ls, &e, nret);
 }
 
 
