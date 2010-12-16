@@ -964,6 +964,7 @@ static const struct {
 };
 
 #define UNARY_PRIORITY	8  /* priority for unary operators */
+#define RELATE_PRIORITY	3  /* priority for relational operators */
 
 
 /*
@@ -1002,6 +1003,19 @@ static BinOpr subexpr (LexState *ls, expdesc *v, unsigned int limit) {
     /* read sub-expression with higher priority */
     nextop = subexpr(ls, &v2, priority[op].right);
     luaK_posfix(ls->fs, op, v, &v2, line);
+    /* chained relational operators */
+    while (priority[nextop].left == RELATE_PRIORITY
+	&& priority[op].left == RELATE_PRIORITY) {
+      expdesc v1 = v2;
+      op = nextop;
+      line = ls->linenumber;
+      luaX_next(ls);
+      luaK_infix(ls->fs, OPR_AND, v);
+      luaK_infix(ls->fs, op, &v1);
+      nextop = subexpr(ls, &v2, priority[op].right);
+      luaK_posfix(ls->fs, op, &v1, &v2, line);
+      luaK_posfix(ls->fs, OPR_AND, v, &v1, line);
+    }
     op = nextop;
   }
   leavelevel(ls);
