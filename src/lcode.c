@@ -492,7 +492,7 @@ int luaK_exp2anyreg (FuncState *fs, expdesc *e) {
 }
 
 
-void luaK_exp2newreg (FuncState *fs, expdesc *e1, expdesc *e2) {
+void luaK_resurrect (FuncState *fs, expdesc *e1, expdesc *e2) {
   *e1 = *e2;
   luaK_reserveregs(fs, 1);
   exp2reg(fs, e1, fs->freereg - 1);
