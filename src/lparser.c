@@ -964,8 +964,10 @@ static const struct {
 };
 
 #define UNARY_PRIORITY	8  /* priority for unary operators */
-#define RELATE_PRIORITY	3  /* priority for relational operators */
+#define CMP_PRIORITY	3  /* priority for comparison operators */
 
+#define cmp_chain(op1, op2) (priority[op1].left == CMP_PRIORITY && \
+                             priority[op2].left == CMP_PRIORITY)
 
 /*
 ** subexpr -> (simpleexp | unop subexpr) { binop subexpr }
@@ -995,7 +997,7 @@ static BinOpr subexpr (LexState *ls, expdesc *v, unsigned int limit) {
   /* expand while operators have priorities higher than `limit' */
   op = getbinopr(ls->t.token);
   while (op != OPR_NOBINOPR && priority[op].left > limit) {
-    expdesc v2;
+    expdesc v1, v2;
     BinOpr nextop;
     int line = ls->linenumber;
     luaX_next(ls);
@@ -1004,14 +1006,12 @@ static BinOpr subexpr (LexState *ls, expdesc *v, unsigned int limit) {
     nextop = subexpr(ls, &v2, priority[op].right);
     luaK_posfix(ls->fs, op, v, &v2, line);
     /* chained relational operators */
-    while (priority[nextop].left == RELATE_PRIORITY
-	&& priority[op].left == RELATE_PRIORITY) {
-      expdesc v1 = v2;
+    while (cmp_chain(op, nextop)) {
       op = nextop;
       line = ls->linenumber;
       luaX_next(ls);
       luaK_infix(ls->fs, OPR_AND, v);
-      luaK_infix(ls->fs, op, &v1);
+      luaK_exp2newreg(ls->fs, &v1, &v2);
       nextop = subexpr(ls, &v2, priority[op].right);
       luaK_posfix(ls->fs, op, &v1, &v2, line);
       luaK_posfix(ls->fs, OPR_AND, v, &v1, line);
