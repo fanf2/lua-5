@@ -778,15 +778,14 @@ static void primaryexp (LexState *ls, expdesc *v) {
         break;
       }
       case ':': {  /* `:' NAME funcargs */
-        int func;
         expdesc key;
         luaX_next(ls);
-        func = luaK_self1(fs, v);
+        luaK_self1(fs, v);
         if (ls->t.token == '[')
           yindex(ls, &key);
         else
           checkname(ls, &key);
-        luaK_self2(fs, func, v, &key);
+        luaK_self2(fs, v, &key);
         funcargs(ls, v);
         break;
       }
