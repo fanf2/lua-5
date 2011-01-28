@@ -500,12 +500,17 @@ void luaK_storevar (FuncState *fs, expdesc *var, expdesc *ex) {
 }
 
 
-void luaK_self (FuncState *fs, expdesc *e, expdesc *key) {
+int luaK_self1 (FuncState *fs, expdesc *e) {
   int func;
   luaK_exp2anyreg(fs, e);
   freeexp(fs, e);
   func = fs->freereg;
   luaK_reserveregs(fs, 2);
+  return func;
+}
+
+
+void luaK_self2 (FuncState *fs, int func, expdesc *e, expdesc *key) {
   luaK_codeABC(fs, OP_SELF, func, e->u.s.info, luaK_exp2RK(fs, key));
   freeexp(fs, key);
   e->u.s.info = func;
