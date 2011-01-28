@@ -780,7 +780,10 @@ static void primaryexp (LexState *ls, expdesc *v) {
       case ':': {  /* `:' NAME funcargs */
         expdesc key;
         luaX_next(ls);
-        checkname(ls, &key);
+        if (ls->t.token == '[')
+          yindex(ls, &key);
+        else
+          checkname(ls, &key);
         luaK_self(fs, v, &key);
         funcargs(ls, v);
         break;
