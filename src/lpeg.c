@@ -788,8 +788,7 @@ static void checkrule (lua_State *L, Instruction *op, int from, int to,
     if (op[i].i.code == IPartialCommit && op[i].i.offset < 0) {  /* loop? */
       int start = dest(op, i);
       assert(op[start - 1].i.code == IChoice &&
-             /* dest(op, start - 1) == target(op, i + 1)); */
-                dest(op, start - 1) == i + 1);
+                dest(op, start - 1) == target(op, i + 1));
       if (start <= lastopen) {  /* loop does contain an open call? */
         if (!verify(L, op, op + start, op + i, postable, rule)) /* check body */
           luaL_error(L, "possible infinite loop in %s", val2str(L, rule));
