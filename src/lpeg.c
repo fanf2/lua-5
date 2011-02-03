@@ -14,6 +14,7 @@
 
 #include "lua.h"
 #include "lauxlib.h"
+#include "lualib.h"
 
 #include "lpeg.h"
 
@@ -2403,7 +2404,7 @@ int luaopen_lpeg (lua_State *L) {
   lua_pushnumber(L, MAXBACK);
   lua_setfield(L, LUA_REGISTRYINDEX, MAXSTACKIDX);
   luaL_register(L, NULL, metapattreg);
-  luaL_register(L, "lpeg", pattreg);
+  luaL_register(L, LUA_LPEGLIBNAME, pattreg);
   lua_pushliteral(L, "__index");
   lua_pushvalue(L, -2);
   lua_settable(L, -4);
