@@ -24,6 +24,15 @@
 
 
 /*
+** Disable assertions if Lua's assertion macro is not defined.
+*/
+#ifndef lua_assert
+#undef  assert
+#define assert(e) ((void)0)
+#endif
+
+
+/*
 ** compatibility with Lua 5.2
 */
 #if (LUA_VERSION_NUM == 502)
