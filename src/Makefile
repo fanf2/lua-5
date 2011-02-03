@@ -156,6 +156,7 @@ loslib.o: loslib.c lua.h luaconf.h lauxlib.h lualib.h
 lparser.o: lparser.c lua.h luaconf.h lcode.h llex.h lobject.h llimits.h \
   lzio.h lmem.h lopcodes.h lparser.h ldebug.h lstate.h ltm.h ldo.h \
   lfunc.h lstring.h lgc.h ltable.h
+lpeg.o: lpeg.c lpeg.h lua.h luaconf.h lauxlib.h lualib.h
 lstate.o: lstate.c lua.h luaconf.h ldebug.h lstate.h lobject.h llimits.h \
   ltm.h lzio.h lmem.h ldo.h lfunc.h lgc.h llex.h lstring.h ltable.h
 lstring.o: lstring.c lua.h luaconf.h lmem.h llimits.h lobject.h lstate.h \
