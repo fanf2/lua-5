@@ -45,30 +45,30 @@ static int maxn (lua_State *L) {
 #endif
 
 
-static int tinsert (lua_State *L) {
-  int e = aux_getn(L, 1) + 1;  /* first empty element */
-  int pos;  /* where to insert new element */
-  switch (lua_gettop(L)) {
-    case 2: {  /* called with only 2 arguments */
-      pos = e;  /* insert new element at the end */
-      break;
-    }
-    case 3: {
-      int i;
-      pos = luaL_checkint(L, 2);  /* 2nd argument is the position */
-      if (pos > e) e = pos;  /* `grow' array if necessary */
-      for (i = e; i > pos; i--) {  /* move up elements */
-        lua_rawgeti(L, 1, i-1);
-        lua_rawseti(L, 1, i);  /* t[i] = t[i-1] */
-      }
-      break;
-    }
-    default: {
-      return luaL_error(L, "wrong number of arguments to " LUA_QL("insert"));
-    }
+static int aux_ins (lua_State *L, int n, int p, int a) {
+  int i = n + a;  /* current write index */
+  int e = p + a;  /* end of insertion position */
+  while (i >= e) {
+    lua_rawgeti(L, 1, n--);
+    lua_rawseti(L, 1, i--);
   }
-  lua_rawseti(L, 1, pos);  /* t[pos] = v */
+  while (i >= p)
+    lua_rawseti(L, 1, i--);
   return 0;
+}
+
+
+static int tappend (lua_State *L) {
+  int n = aux_getn(L, 1);
+  return aux_ins(L, n, n+1, lua_gettop(L) - 1);
+}
+
+
+static int tinsert (lua_State *L) {
+  int n = aux_getn(L, 1);
+  int p = luaL_checkint(L, 2);
+  if (n < p) n = p;  /* `grow' array if necessary */
+  return aux_ins(L, n, p, lua_gettop(L) - 2);
 }
 
 
@@ -264,6 +264,7 @@ static int sort (lua_State *L) {
 
 
 static const luaL_Reg tab_funcs[] = {
+  {"append", tappend},
   {"concat", tconcat},
   {"foreach", deprecatedfunc},
   {"foreachi", deprecatedfunc},
