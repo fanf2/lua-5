@@ -284,23 +284,54 @@ static void read_long_string (LexState *ls, SemInfo *seminfo, int sep) {
 }
 
 
-static int hexavalue (int c) {
-  if (lisdigit(c)) return c - '0';
-  else if (lisupper(c)) return c - 'A' + 10;
-  else return c - 'a' + 10;
+static void saveutf8(LexState *ls, unsigned u) {
+  /* no protection against malformed utf-8 */
+  if (u > 0x0000007F) {
+    if (u > 0x000007FF) {
+      if (u > 0x0000FFFF) {
+        if (u > 0x001FFFFF) {
+          if (u > 0x03FFFFFF) {
+            if (u > 0x7FFFFFFF) {
+              save(ls, 0xFE);
+              save(ls, (u >> 30) % 0x40 + 0x80);
+            } else
+              save(ls, (u >> 30) % 0x40 + 0xFC);
+            save(ls, (u >> 24) % 0x40 + 0x80);
+          } else
+            save(ls, (u >> 24) % 0x40 + 0xF8);
+          save(ls, (u >> 18) % 0x40 + 0x80);
+        } else
+          save(ls, (u >> 18) % 0x40 + 0xF0);
+        save(ls, (u >> 12) % 0x40 + 0x80);
+      } else
+        save(ls, (u >> 12) % 0x40 + 0xE0);
+      save(ls, (u >> 6) % 0x40 + 0x80);
+    } else
+      save(ls, (u >> 6) % 0x40 + 0xC0);
+    save(ls, (u >> 0) % 0x40 + 0x80);
+  } else
+    save(ls, u);
 }
 
 
-static int readhexaesc (LexState *ls) {
-  int c1, c2 = EOZ;
-  if (!lisxdigit(c1 = next(ls)) || !lisxdigit(c2 = next(ls))) {
-    luaZ_resetbuffer(ls->buff);  /* prepare error message */
-    save(ls, '\\'); save(ls, 'x');
-    if (c1 != EOZ) save(ls, c1);
-    if (c2 != EOZ) save(ls, c2);
-    lexerror(ls, "hexadecimal digit expected", TK_STRING);
+static unsigned readhexaesc (LexState *ls, int n) {
+  char buf[8], esc = ls->current;
+  unsigned x = 0;
+  int i, j, c;
+  for (i = 0; i < n; i++) {
+    c = buf[i] = next(ls);
+    if (!lisxdigit(c)) {
+      luaZ_resetbuffer(ls->buff);  /* prepare error message */
+      save(ls, '\\'); save(ls, esc);
+      for (j = 0; j <= i; j++) save(ls, buf[j]);
+      lexerror(ls, "hexadecimal digit expected", TK_STRING);
+    }
+    if (lisdigit(c)) x = x*16 + c - '0';
+    else if (lisupper(c)) x = x*16 + c - 'A' + 10;
+    else x = x*16 + c - 'a' + 10;
   }
-  return (hexavalue(c1) << 4) + hexavalue(c2);
+  next(ls);
+  return x;
 }
 
 
@@ -348,7 +379,9 @@ static void read_string (LexState *ls, int del, SemInfo *seminfo) {
           case 'r': c = '\r'; break;
           case 't': c = '\t'; break;
           case 'v': c = '\v'; break;
-          case 'x': c = readhexaesc(ls); break;
+          case 'x': save(ls, readhexaesc(ls, 2)); continue;
+          case 'u': saveutf8(ls, readhexaesc(ls, 4)); continue;
+          case 'U': saveutf8(ls, readhexaesc(ls, 8)); continue;
           case '\n':
           case '\r': save(ls, '\n'); inclinenumber(ls); continue;
           case EOZ: continue;  /* will raise an error next loop */
