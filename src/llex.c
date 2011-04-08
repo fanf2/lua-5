@@ -277,6 +277,19 @@ static void read_long_string (LexState *ls, SemInfo *seminfo, int sep) {
 }
 
 
+static unsigned read_hex_escape (LexState *ls, int n) {
+  unsigned c = 0;
+  for (next(ls); n--; next(ls))
+    if (!isxdigit(ls->current))
+      luaX_lexerror(ls, "non-hex character in hex escape sequence", TK_STRING);
+    else
+      c = 16*c + (ls->current >= 'a' ? ls->current - 'a' + 10 :
+                  ls->current >= 'A' ? ls->current - 'A' + 10 :
+                                       ls->current - '0');
+  return c;
+}
+
+
 static void read_string (LexState *ls, int del, SemInfo *seminfo) {
   save_and_next(ls);
   while (ls->current != del) {
@@ -302,6 +315,35 @@ static void read_string (LexState *ls, int del, SemInfo *seminfo) {
           case '\n':  /* go through */
           case '\r': save(ls, '\n'); inclinenumber(ls); continue;
           case EOZ: continue;  /* will raise an error next loop */
+          case 'x': save(ls, read_hex_escape(ls, 2)); continue;
+          case 'u': c = read_hex_escape(ls, 4); goto utf8;
+          case 'U': c = read_hex_escape(ls, 8); utf8: {
+            /* much looser than required by the spec */
+            if (c < 0)
+              luaX_lexerror(ls, "overflow in hex escape sequence", TK_STRING);
+            if (c > 0x0000007F) {
+              if (c > 0x000007FF) {
+                if (c > 0x0000FFFF) {
+                  if (c > 0x001FFFFF) {
+                    if (c > 0x03FFFFFF) {
+                      save(ls, 0xFC | (c & 0x40000000) >> 30);
+                      save(ls, 0x80 | (c & 0x3F000000) >> 24);
+                    } else
+                      save(ls, 0xF8 | (c & 0x03000000) >> 24);
+                    save(ls, 0x80 | (c & 0x00FC0000) >> 18);
+                  } else
+                    save(ls, 0xF0 | (c & 0x001C0000) >> 18);
+                  save(ls, 0x80 | (c & 0x0003F000) >> 12);
+                } else
+                  save(ls, 0xE0 | (c & 0x0000F000) >> 12);
+                save(ls, 0x80 | (c & 0x00000FC0) >> 6);
+              } else
+                save(ls, 0xC0 | (c & 0x00000FC0) >> 6);
+              save(ls, 0x80 | (c & 0x0000003F) >> 0);
+            } else
+              save(ls, c);
+	    continue;
+          }
           default: {
             if (!isdigit(ls->current))
               save_and_next(ls);  /* handles \\, \", \', and \? */
