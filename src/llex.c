@@ -292,25 +292,19 @@ static void saveutf8(LexState *ls, unsigned u) {
         if (u > 0x001FFFFF) {
           if (u > 0x03FFFFFF) {
             if (u > 0x7FFFFFFF) {
-              save(ls, 0xFE);
-              save(ls, (u >> 30) % 0x40 + 0x80);
-            } else
-              save(ls, (u >> 30) % 0x40 + 0xFC);
-            save(ls, (u >> 24) % 0x40 + 0x80);
-          } else
-            save(ls, (u >> 24) % 0x40 + 0xF8);
-          save(ls, (u >> 18) % 0x40 + 0x80);
-        } else
-          save(ls, (u >> 18) % 0x40 + 0xF0);
-        save(ls, (u >> 12) % 0x40 + 0x80);
-      } else
-        save(ls, (u >> 12) % 0x40 + 0xE0);
-      save(ls, (u >> 6) % 0x40 + 0x80);
-    } else
-      save(ls, (u >> 6) % 0x40 + 0xC0);
-    save(ls, (u >> 0) % 0x40 + 0x80);
-  } else
-    save(ls, u);
+                     save(ls,                    0xFE);
+                    save(ls, (u >> 30) % 0x40 + 0x80);
+            } else save(ls, (u >> 30) % 0x40 + 0xFC);
+                  save(ls, (u >> 24) % 0x40 + 0x80);
+          } else save(ls, (u >> 24) % 0x40 + 0xF8);
+                save(ls, (u >> 18) % 0x40 + 0x80);
+        } else save(ls, (u >> 18) % 0x40 + 0xF0);
+              save(ls, (u >> 12) % 0x40 + 0x80);
+      } else save(ls, (u >> 12) % 0x40 + 0xE0);
+            save(ls, (u >>  6) % 0x40 + 0x80);
+    } else save(ls, (u >>  6) % 0x40 + 0xC0);
+          save(ls, (u      ) % 0x40 + 0x80);
+  } else save(ls, (u      )              );
 }
 
 
@@ -320,15 +314,15 @@ static unsigned readhexaesc (LexState *ls, int n) {
   int i, j, c;
   for (i = 0; i < n; i++) {
     c = buf[i] = next(ls);
-    if (!lisxdigit(c)) {
+    if (lisxdigit(c))
+      x = x*16 + c - (lislower(c) ? 'a' - 10 :
+                      lisupper(c) ? 'A' - 10 : '0');
+    else {
       luaZ_resetbuffer(ls->buff);  /* prepare error message */
       save(ls, '\\'); save(ls, esc);
       for (j = 0; j <= i; j++) save(ls, buf[j]);
       lexerror(ls, "hexadecimal digit expected", TK_STRING);
     }
-    if (lisdigit(c)) x = x*16 + c - '0';
-    else if (lisupper(c)) x = x*16 + c - 'A' + 10;
-    else x = x*16 + c - 'a' + 10;
   }
   next(ls);
   return x;

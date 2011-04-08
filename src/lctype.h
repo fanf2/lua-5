@@ -21,6 +21,7 @@
 #define SPACEBIT	3
 #define XDIGITBIT	4
 #define UPPERBIT	5
+#define LOWERBIT	6
 
 
 #define MASK(B)		(1 << (B))
@@ -29,18 +30,19 @@
 /*
 ** add 1 to char to allow index -1 (EOZ)
 */
-#define testprop(c,p)	(luai_ctype_[(c)+1] & (p))
+#define lctype(c,p)	(luai_ctype_[(c)+1] & (p))
 
 /*
 ** 'lalpha' (Lua alphabetic) and 'lalnum' (Lua alphanumeric) both include '_'
 */
-#define lislalpha(c)	testprop(c, MASK(ALPHABIT))
-#define lislalnum(c)	testprop(c, (MASK(ALPHABIT) | MASK(DIGITBIT)))
-#define lisupper(c)	testprop(c, MASK(UPPERBIT))
-#define lisdigit(c)	testprop(c, MASK(DIGITBIT))
-#define lisspace(c)	testprop(c, MASK(SPACEBIT))
-#define lisprint(c)	testprop(c, MASK(PRINTBIT))
-#define lisxdigit(c)	testprop(c, MASK(XDIGITBIT))
+#define lislalpha(c)	lctype(c, MASK(ALPHABIT))
+#define lislalnum(c)	lctype(c, (MASK(ALPHABIT) | MASK(DIGITBIT)))
+#define lisupper(c)	lctype(c, MASK(UPPERBIT))
+#define lislower(c)	lctype(c, MASK(LOWERBIT))
+#define lisdigit(c)	lctype(c, MASK(DIGITBIT))
+#define lisspace(c)	lctype(c, MASK(SPACEBIT))
+#define lisprint(c)	lctype(c, MASK(PRINTBIT))
+#define lisxdigit(c)	lctype(c, MASK(XDIGITBIT))
 
 
 /* one more entry for 0 and one more for -1 (EOZ) */
