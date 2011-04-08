@@ -315,8 +315,7 @@ static unsigned readhexaesc (LexState *ls, int n) {
   for (i = 0; i < n; i++) {
     c = buf[i] = next(ls);
     if (lisxdigit(c))
-      x = x*16 + c - (lislower(c) ? 'a' - 10 :
-                      lisupper(c) ? 'A' - 10 : '0');
+      x = x*16 + c - (lisdigit(c) ? '0' : lisupper(c) ? 'A' - 10 : 'a' - 10);
     else {
       luaZ_resetbuffer(ls->buff);  /* prepare error message */
       save(ls, '\\'); save(ls, esc);
