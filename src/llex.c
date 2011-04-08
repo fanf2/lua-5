@@ -277,16 +277,48 @@ static void read_long_string (LexState *ls, SemInfo *seminfo, int sep) {
 }
 
 
-static unsigned read_hex_escape (LexState *ls, int n) {
-  unsigned c = 0;
-  for (next(ls); n--; next(ls))
-    if (!isxdigit(ls->current))
-      luaX_lexerror(ls, "non-hex character in hex escape sequence", TK_STRING);
-    else
-      c = 16*c + (ls->current >= 'a' ? ls->current - 'a' + 10 :
-                  ls->current >= 'A' ? ls->current - 'A' + 10 :
-                                       ls->current - '0');
-  return c;
+static void saveutf8(LexState *ls, unsigned u) {
+  /* no protection against malformed utf-8 */
+  if (u > 0x0000007F) {
+    if (u > 0x000007FF) {
+      if (u > 0x0000FFFF) {
+        if (u > 0x001FFFFF) {
+          if (u > 0x03FFFFFF) {
+            if (u > 0x7FFFFFFF) {
+                     save(ls,                    0xFE);
+                    save(ls, (u >> 30) % 0x40 + 0x80);
+            } else save(ls, (u >> 30) % 0x40 + 0xFC);
+                  save(ls, (u >> 24) % 0x40 + 0x80);
+          } else save(ls, (u >> 24) % 0x40 + 0xF8);
+                save(ls, (u >> 18) % 0x40 + 0x80);
+        } else save(ls, (u >> 18) % 0x40 + 0xF0);
+              save(ls, (u >> 12) % 0x40 + 0x80);
+      } else save(ls, (u >> 12) % 0x40 + 0xE0);
+            save(ls, (u >>  6) % 0x40 + 0x80);
+    } else save(ls, (u >>  6) % 0x40 + 0xC0);
+          save(ls, (u      ) % 0x40 + 0x80);
+  } else save(ls, (u      )              );
+}
+
+
+static unsigned readhexaesc (LexState *ls, int n) {
+  char buf[8], esc = ls->current;
+  unsigned x = 0;
+  int i, j, c;
+  for (i = 0; i < n; i++) {
+    c = buf[i] = next(ls);
+    if ('0' <= c && c <= '9') x = x*16 + c - '0';
+    else if ('A' <= c && c <= 'F') x = x*16 + c - 'A' + 10;
+    else if ('a' <= c && c <= 'f') x = x*16 + c - 'a' + 10;
+    else {
+      luaZ_resetbuffer(ls->buff);  /* prepare error message */
+      save(ls, '\\'); save(ls, esc);
+      for (j = 0; j <= i; j++) save(ls, buf[j]);
+      luaX_lexerror(ls, "hexadecimal digit expected", TK_STRING);
+    }
+  }
+  next(ls);
+  return x;
 }
 
 
@@ -312,38 +344,12 @@ static void read_string (LexState *ls, int del, SemInfo *seminfo) {
           case 'r': c = '\r'; break;
           case 't': c = '\t'; break;
           case 'v': c = '\v'; break;
+          case 'x': save(ls, readhexaesc(ls, 2)); continue;
+          case 'u': saveutf8(ls, readhexaesc(ls, 4)); continue;
+          case 'U': saveutf8(ls, readhexaesc(ls, 8)); continue;
           case '\n':  /* go through */
           case '\r': save(ls, '\n'); inclinenumber(ls); continue;
           case EOZ: continue;  /* will raise an error next loop */
-          case 'x': save(ls, read_hex_escape(ls, 2)); continue;
-          case 'u': c = read_hex_escape(ls, 4); goto utf8;
-          case 'U': c = read_hex_escape(ls, 8); utf8: {
-            /* much looser than required by the spec */
-            if (c < 0)
-              luaX_lexerror(ls, "overflow in hex escape sequence", TK_STRING);
-            if (c > 0x0000007F) {
-              if (c > 0x000007FF) {
-                if (c > 0x0000FFFF) {
-                  if (c > 0x001FFFFF) {
-                    if (c > 0x03FFFFFF) {
-                      save(ls, 0xFC | (c & 0x40000000) >> 30);
-                      save(ls, 0x80 | (c & 0x3F000000) >> 24);
-                    } else
-                      save(ls, 0xF8 | (c & 0x03000000) >> 24);
-                    save(ls, 0x80 | (c & 0x00FC0000) >> 18);
-                  } else
-                    save(ls, 0xF0 | (c & 0x001C0000) >> 18);
-                  save(ls, 0x80 | (c & 0x0003F000) >> 12);
-                } else
-                  save(ls, 0xE0 | (c & 0x0000F000) >> 12);
-                save(ls, 0x80 | (c & 0x00000FC0) >> 6);
-              } else
-                save(ls, 0xC0 | (c & 0x00000FC0) >> 6);
-              save(ls, 0x80 | (c & 0x0000003F) >> 0);
-            } else
-              save(ls, c);
-	    continue;
-          }
           default: {
             if (!isdigit(ls->current))
               save_and_next(ls);  /* handles \\, \", \', and \? */
