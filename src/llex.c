@@ -277,31 +277,23 @@ static void read_long_string (LexState *ls, SemInfo *seminfo, int sep) {
 }
 
 
-static void saveutf8(LexState *ls, unsigned u) {
-  /* no protection against malformed utf-8 */
-  if (u > 0x0000007F) {
-    if (u > 0x000007FF) {
-      if (u > 0x0000FFFF) {
-        if (u > 0x001FFFFF) {
-          if (u > 0x03FFFFFF) {
-            if (u > 0x7FFFFFFF) {
-                     save(ls,                    0xFE);
-                    save(ls, (u >> 30) % 0x40 + 0x80);
-            } else save(ls, (u >> 30) % 0x40 + 0xFC);
-                  save(ls, (u >> 24) % 0x40 + 0x80);
-          } else save(ls, (u >> 24) % 0x40 + 0xF8);
-                save(ls, (u >> 18) % 0x40 + 0x80);
-        } else save(ls, (u >> 18) % 0x40 + 0xF0);
-              save(ls, (u >> 12) % 0x40 + 0x80);
-      } else save(ls, (u >> 12) % 0x40 + 0xE0);
-            save(ls, (u >>  6) % 0x40 + 0x80);
-    } else save(ls, (u >>  6) % 0x40 + 0xC0);
-          save(ls, (u      ) % 0x40 + 0x80);
-  } else save(ls, (u      )              );
+static void saveutf8(LexState *ls, int c) {
+  /* This is designed to allow you to emit malformed UTF-8. */
+  if (c < 0x00000080) { save(ls, (c             )       ); } else {
+  if (c < 0x00000800) { save(ls, (c >> 06       ) | 0xC0); } else {
+  if (c < 0x00010000) { save(ls, (c >> 12       ) | 0xE0); } else {
+  if (c < 0x00200000) { save(ls, (c >> 18       ) | 0xF0); } else {
+  if (c < 0x04000000) { save(ls, (c >> 24       ) | 0xF8); } else {
+                        save(ls, (c >> 30 & 0x01) | 0xFC);
+                        save(ls, (c >> 24 & 0x3F) | 0x80); }
+                        save(ls, (c >> 18 & 0x3F) | 0x80); }
+                        save(ls, (c >> 12 & 0x3F) | 0x80); }
+                        save(ls, (c >> 06 & 0x3F) | 0x80); }
+                        save(ls, (c       & 0x3F) | 0x80); }
 }
 
 
-static unsigned readhexaesc (LexState *ls, int n) {
+static int readhexaesc (LexState *ls, int n) {
   char buf[8], esc = ls->current;
   unsigned x = 0;
   int i, j, c;
