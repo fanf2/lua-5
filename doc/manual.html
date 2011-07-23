@@ -1163,6 +1163,9 @@ the five literal strings below denote the same string:
      a = [==[
      alo
      123"]==]
+     a = [===[
+     alo
+     123"]===]
 </pre>
 
 <p>
@@ -2103,6 +2106,7 @@ The following syntactic sugar simplifies function definitions:
 <pre>
 	stat ::= <b>function</b> funcname funcbody
 	stat ::= <b>local</b> <b>function</b> Name funcbody
+	stat ::= <b>local</b> Name funcbody
 	funcname ::= Name {&lsquo;<b>.</b>&rsquo; Name} [&lsquo;<b>:</b>&rsquo; Name]
 </pre><p>
 The statement
@@ -2125,12 +2129,13 @@ translates to
 <pre>
      t.a.b.c.f = function () <em>body</em> end
 </pre><p>
-The statement
+Both of the statements
 
 <pre>
      local function f () <em>body</em> end
+     local f () <em>body</em> end
 </pre><p>
-translates to
+translate to
 
 <pre>
      local f; f = function () <em>body</em> end
@@ -9873,6 +9878,7 @@ Here is the complete syntax of Lua in extended BNF.
 		 <b>for</b> namelist <b>in</b> explist <b>do</b> block <b>end</b> | 
 		 <b>function</b> funcname funcbody | 
 		 <b>local</b> <b>function</b> Name funcbody | 
+		 <b>local</b> Name funcbody | 
 		 <b>local</b> namelist [&lsquo;<b>=</b>&rsquo; explist] 
 
 	laststat ::= <b>return</b> [explist] | <b>break</b>

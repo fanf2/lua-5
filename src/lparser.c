@@ -1348,7 +1348,6 @@ static void ifstat (LexState *ls, int line) {
 static void localfunc (LexState *ls) {
   expdesc v, b;
   FuncState *fs = ls->fs;
-  new_localvar(ls, str_checkname(ls));
   init_exp(&v, VLOCAL, fs->freereg);
   luaK_reserveregs(fs, 1);
   adjustlocalvars(ls, 1);
@@ -1357,15 +1356,13 @@ static void localfunc (LexState *ls) {
 }
 
 
-static void localstat (LexState *ls) {
+static void localvars (LexState *ls) {
   /* stat -> LOCAL NAME {`,' NAME} [`=' explist1] */
-  int nvars = 0;
+  int nvars;
   int nexps;
   expdesc e;
-  do {
+  for (nvars = 1; testnext(ls, ','); nvars++)
     new_localvar(ls, str_checkname(ls));
-    nvars++;
-  } while (testnext(ls, ','));
   if (testnext(ls, '='))
     nexps = explist1(ls, &e);
   else {
@@ -1374,6 +1371,18 @@ static void localstat (LexState *ls) {
   }
   adjust_assign(ls, nvars, nexps, &e);
   adjustlocalvars(ls, nvars);
+}
+
+
+static void localstat (LexState *ls) {
+  int func;
+  luaX_next(ls);  /* skip LOCAL */
+  func = testnext(ls, TK_FUNCTION);
+  new_localvar(ls, str_checkname(ls));
+  if (func || ls->t.token == '(')
+    localfunc(ls);
+  else
+    localvars(ls);
 }
 
 
@@ -1484,11 +1493,7 @@ static int statement (LexState *ls) {
       return 0;
     }
     case TK_LOCAL: {  /* stat -> localstat */
-      luaX_next(ls);  /* skip LOCAL */
-      if (testnext(ls, TK_FUNCTION))  /* local function? */
-        localfunc(ls);
-      else
-        localstat(ls);
+      localstat(ls);
       return 0;
     }
     case TK_RETURN: {  /* stat -> retstat */
