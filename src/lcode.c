@@ -731,6 +731,46 @@ static void codearith (FuncState *fs, OpCode op,
 }
 
 
+static void codeupdate (FuncState *fs, OpCode op,
+                        expdesc *e1, expdesc *e2, int line) {
+  int o1 = fs->freereg;
+  int o2 = luaK_exp2RK(fs, e2);
+  int getop, geta, getb, getc, setop, seta, setb, setc;
+  switch (e1->k) {
+    case VLOCAL: {
+      luaK_codeABC(fs, op, e1->u.info, o2, 0);
+      return;
+    }
+    case VUPVAL:
+      getop = OP_GETUPVAL, setop = OP_SETUPVAL;
+      seta = geta = o1;
+      setb = getb = e1->u.info;
+      setc = getc = 0;
+      break;
+    case VINDEXED: {
+      if (e1->u.ind.vt == VLOCAL)
+	getop = OP_GETTABLE, setop = OP_SETTABLE;
+      else
+	getop = OP_GETTABUP, setop = OP_SETTABUP;
+      seta = getb = e1->u.ind.t;
+      setb = getc = e1->u.ind.idx;
+      setc = geta = o1;
+      break;
+    }
+    default: {
+      lua_assert(0);  /* invalid var kind to store */
+      return;
+    }
+  }
+  luaK_reserveregs(fs, 1);
+  luaK_codeABC(fs, getop, geta, getb, getc);
+  luaK_codeABC(fs, op, o1, o2, 0);
+  luaK_codeABC(fs, setop, seta, setb, setc);
+  freereg(fs, o1);
+  freeexp(fs, e2);
+}
+
+
 static void codecomp (FuncState *fs, OpCode op, int cond, expdesc *e1,
                                                           expdesc *e2) {
   int o1 = luaK_exp2RK(fs, e1);
@@ -829,9 +869,14 @@ void luaK_posfix (FuncState *fs, BinOpr op,
       }
       break;
     }
-    case OPR_ADD: case OPR_SUB: case OPR_MUL: case OPR_DIV:
-    case OPR_MOD: case OPR_POW: {
+    case OPR_ADD: case OPR_SUB: case OPR_MUL:
+    case OPR_DIV: case OPR_MOD: case OPR_POW: {
       codearith(fs, cast(OpCode, op - OPR_ADD + OP_ADD), e1, e2, line);
+      break;
+    }
+    case OPR_ADD_EQ: case OPR_SUB_EQ: case OPR_MUL_EQ:
+    case OPR_DIV_EQ: case OPR_MOD_EQ: case OPR_POW_EQ: {
+      codeupdate(fs, cast(OpCode, op - OPR_ADD_EQ + OP_ADD_EQ), e1, e2, line);
       break;
     }
     case OPR_EQ: case OPR_LT: case OPR_LE: {

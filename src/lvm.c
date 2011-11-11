@@ -167,6 +167,15 @@ static int call_binTM (lua_State *L, const TValue *p1, const TValue *p2,
 }
 
 
+static int call_upTM (lua_State *L, const TValue *p1, const TValue *p2,
+                      StkId res, TMS event) {
+  const TValue *tm = luaT_gettmbyobj(L, p1, event);
+  if (ttisnil(tm)) return 0;
+  callTM(L, tm, p1, p2, res, 1);
+  return 1;
+}
+
+
 static const TValue *get_equalTM (lua_State *L, Table *mt1, Table *mt2,
                                   TMS event) {
   const TValue *tm1 = fasttm(L, mt1, event);
@@ -345,6 +354,19 @@ void luaV_arith (lua_State *L, StkId ra, const TValue *rb,
 }
 
 
+static void luaV_update (lua_State *L, StkId ra, const TValue *rb, TMS op) {
+  TValue tempa, tempb;
+  const TValue *a, *b;
+  if ((a = luaV_tonumber(ra, &tempa)) != NULL &&
+      (b = luaV_tonumber(rb, &tempb)) != NULL) {
+    lua_Number res = luaO_arith(op - TM_ADD + LUA_OPADD, nvalue(a), nvalue(b));
+    setnvalue(ra, res);
+  }
+  else if (!call_upTM(L, ra, rb, ra, op))
+    luaG_aritherror(L, ra, rb);
+}
+
+
 /*
 ** check whether cached closure in prototype 'p' may be reused, that is,
 ** whether there is a cached closure with the same upvalues needed by
@@ -482,6 +504,17 @@ void luaV_finishOp (lua_State *L) {
           setnvalue(ra, op(L, nb, nc)); \
         } \
         else { Protect(luaV_arith(L, ra, rb, rc, tm)); } }
+
+
+#define update_op(op,tm) { \
+        TValue *rb = RKB(i); \
+        if (ttisnumber(ra) && ttisnumber(rb)) { \
+          lua_Number na = nvalue(ra), nb = nvalue(rb); \
+          setnvalue(ra, op(L, na, nb)); \
+        } \
+        else \
+          Protect(luaV_update(L, ra, rb, tm)); \
+      }
 
 
 #define vmdispatch(o)	switch(o)
@@ -802,6 +835,27 @@ void luaV_execute (lua_State *L) {
         }
       )
       vmcase(OP_EXTRAARG,
+        lua_assert(0);
+      )
+      vmcase(OP_ADD_EQ,
+	update_op(luai_numadd, TM_ADD_EQ);
+      )
+      vmcase(OP_SUB_EQ,
+	update_op(luai_numsub, TM_SUB_EQ);
+      )
+      vmcase(OP_MUL_EQ,
+	update_op(luai_nummul, TM_MUL_EQ);
+      )
+      vmcase(OP_DIV_EQ,
+	update_op(luai_numdiv, TM_DIV_EQ);
+      )
+      vmcase(OP_MOD_EQ,
+	update_op(luai_nummod, TM_MOD_EQ);
+      )
+      vmcase(OP_POW_EQ,
+	update_op(luai_numpow, TM_POW_EQ);
+      )
+      vmcase(OP_N,
         lua_assert(0);
       )
     }

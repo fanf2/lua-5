@@ -54,6 +54,12 @@ LUAI_DDEF const char *const luaP_opnames[NUM_OPCODES+1] = {
   "CLOSURE",
   "VARARG",
   "EXTRAARG",
+  "ADDEQ",
+  "SUBEQ",
+  "MULEQ",
+  "DIVEQ",
+  "MODEQ",
+  "POWEQ",
   NULL
 };
 
@@ -102,5 +108,11 @@ LUAI_DDEF const lu_byte luaP_opmodes[NUM_OPCODES] = {
  ,opmode(0, 1, OpArgU, OpArgN, iABx)		/* OP_CLOSURE */
  ,opmode(0, 1, OpArgU, OpArgN, iABC)		/* OP_VARARG */
  ,opmode(0, 0, OpArgU, OpArgU, iAx)		/* OP_EXTRAARG */
-};
+ ,opmode(0, 1, OpArgK, OpArgN, iABC)		/* OP_ADD_EQ */
+ ,opmode(0, 1, OpArgK, OpArgN, iABC)		/* OP_SUB_EQ */
+ ,opmode(0, 1, OpArgK, OpArgN, iABC)		/* OP_MUL_EQ */
+ ,opmode(0, 1, OpArgK, OpArgN, iABC)		/* OP_DIV_EQ */
+ ,opmode(0, 1, OpArgK, OpArgN, iABC)		/* OP_MOD_EQ */
+ ,opmode(0, 1, OpArgK, OpArgN, iABC)		/* OP_POW_EQ */
+ };
 

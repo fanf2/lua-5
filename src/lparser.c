@@ -934,6 +934,19 @@ static UnOpr getunopr (int op) {
 }
 
 
+static BinOpr getupopr (int op) {
+  switch (op) {
+    case TK_ADD_EQ: return OPR_ADD_EQ;
+    case TK_SUB_EQ: return OPR_SUB_EQ;
+    case TK_MUL_EQ: return OPR_MUL_EQ;
+    case TK_DIV_EQ: return OPR_DIV_EQ;
+    case TK_MOD_EQ: return OPR_MOD_EQ;
+    case TK_POW_EQ: return OPR_POW_EQ;
+    default: return OPR_NOBINOPR;
+  }
+}
+
+
 static BinOpr getbinopr (int op) {
   switch (op) {
     case '+': return OPR_ADD;
@@ -1138,6 +1151,18 @@ static void assignment (LexState *ls, struct LHS_assign *lh, int nvars) {
   }
   init_exp(&e, VNONRELOC, ls->fs->freereg-1);  /* default assignment */
   luaK_storevar(ls->fs, &lh->v, &e);
+}
+
+
+static void update (LexState *ls, struct LHS_assign *lh, BinOpr op) {
+  /* update -> upop exp1 */
+  expdesc rh;
+  int line = ls->linenumber;
+  check_condition(ls, vkisvar(lh->v.k), "syntax error");
+  luaX_next(ls); /* skip operator */
+  expr(ls, &rh);
+  luaK_exp2nextreg(ls->fs, &rh);
+  luaK_posfix(ls->fs, op, &(lh->v), &rh, line);
 }
 
 
@@ -1414,9 +1439,16 @@ static void exprstat (LexState *ls) {
   primaryexp(ls, &v.v);
   if (v.v.k == VCALL)  /* stat -> func */
     SETARG_C(getcode(fs, &v.v), 1);  /* call statement uses no results */
-  else {  /* stat -> assignment */
+  else {  /* stat -> assignment | update */
+    BinOpr op = getupopr(ls->t.token);
     v.prev = NULL;
-    assignment(ls, &v, 1);
+    if (op != OPR_NOBINOPR)
+      update(ls, &v, op);
+    else if (ls->t.token == ',' || ls->t.token == '=')
+      assignment(ls, &v, 1);
+    else
+      luaX_syntaxerror(ls, luaO_pushfstring(ls->L,
+	"assignment operator expected"));
   }
 }
 

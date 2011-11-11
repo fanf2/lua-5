@@ -222,11 +222,20 @@ OP_CLOSURE,/*	A Bx	R(A) := closure(KPROTO[Bx])			*/
 
 OP_VARARG,/*	A B	R(A), R(A+1), ..., R(A+B-2) = vararg		*/
 
-OP_EXTRAARG/*	Ax	extra (larger) argument for previous opcode	*/
+OP_EXTRAARG,/*	Ax	extra (larger) argument for previous opcode	*/
+
+OP_ADD_EQ,/*	A B	R(A) := R(A) + RK(B)				*/
+OP_SUB_EQ,/*	A B	R(A) := R(A) - RK(B)				*/
+OP_MUL_EQ,/*	A B	R(A) := R(A) * RK(B)				*/
+OP_DIV_EQ,/*	A B	R(A) := R(A) / RK(B)				*/
+OP_MOD_EQ,/*	A B	R(A) := R(A) % RK(B)				*/
+OP_POW_EQ,/*	A B	R(A) := R(A) ^ RK(B)				*/
+
+OP_N /* number of elements in the enum */
 } OpCode;
 
 
-#define NUM_OPCODES	(cast(int, OP_EXTRAARG) + 1)
+#define NUM_OPCODES	(cast(int, OP_N))
 
 
 
