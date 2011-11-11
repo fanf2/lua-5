@@ -36,6 +36,7 @@ typedef enum BinOpr {
 typedef enum UnOpr {
   OPR_MINUS, OPR_PLUS,
   OPR_NOT, OPR_LEN,
+  OPR_DOT,
   OPR_NOUNOPR
 } UnOpr;
 
