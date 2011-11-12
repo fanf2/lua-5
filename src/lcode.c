@@ -569,8 +569,8 @@ void luaK_storevar (FuncState *fs, expdesc *var, expdesc *ex) {
       return;
     }
     case VUPVAL: {
-      int e = luaK_exp2anyreg(fs, ex);
-      luaK_codeABC(fs, OP_SETUPVAL, e, var->u.info, 0);
+      int e = luaK_exp2RK(fs, ex);
+      luaK_codeABC(fs, OP_SETUPVAL, var->u.info, 0, e);
       break;
     }
     case VINDEXED: {
@@ -749,30 +749,24 @@ static void codearith (FuncState *fs, OpCode op,
 }
 
 
-static void codeupdate (FuncState *fs, OpCode op,
+static void codeupdate (FuncState *fs, OpCode upop,
                         expdesc *e1, expdesc *e2, int line) {
-  int o1 = fs->freereg;
-  int o2 = luaK_exp2RK(fs, e2);
-  int getop, geta, getb, getc, setop, seta, setb, setc;
+  int o1, o2 = luaK_exp2RK(fs, e2);
+  int getop, t, idx;
   switch (e1->k) {
     case VLOCAL: {
-      luaK_codeABC(fs, op, e1->u.info, o2, 0);
+      luaK_codeABC(fs, upop, e1->u.info, o2, 0);
       return;
     }
     case VUPVAL:
-      getop = OP_GETUPVAL, setop = OP_SETUPVAL;
-      seta = geta = o1;
-      setb = getb = e1->u.info;
-      setc = getc = 0;
+      getop = OP_GETUPVAL;
+      t = e1->u.info;
+      idx = 0;
       break;
     case VINDEXED: {
-      if (e1->u.ind.vt == VLOCAL)
-	getop = OP_GETTABLE, setop = OP_SETTABLE;
-      else
-	getop = OP_GETTABUP, setop = OP_SETTABUP;
-      seta = getb = e1->u.ind.t;
-      setb = getc = e1->u.ind.idx;
-      setc = geta = o1;
+      getop = (e1->u.ind.vt == VLOCAL) ? OP_GETTABLE : OP_GETTABUP;
+      t   = e1->u.ind.t;
+      idx = e1->u.ind.idx;
       break;
     }
     default: {
@@ -780,10 +774,11 @@ static void codeupdate (FuncState *fs, OpCode op,
       return;
     }
   }
+  o1 = fs->freereg;
   luaK_reserveregs(fs, 1);
-  luaK_codeABC(fs, getop, geta, getb, getc);
-  luaK_codeABC(fs, op, o1, o2, 0);
-  luaK_codeABC(fs, setop, seta, setb, setc);
+  luaK_codeABC(fs, getop+0, o1, t, idx);
+  luaK_codeABC(fs, upop, o1, o2, 0);
+  luaK_codeABC(fs, getop+1, t, idx, o1);
   freereg(fs, o1);
   freeexp(fs, e2);
 }

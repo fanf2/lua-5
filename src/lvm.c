@@ -590,21 +590,22 @@ void luaV_execute (lua_State *L) {
         int b = GETARG_B(i);
         setobj2s(L, ra, cl->upvals[b]->v);
       )
+      vmcase(OP_SETUPVAL,
+        UpVal *uv = cl->upvals[GETARG_A(i)];
+        TValue *rc = RKC(i);
+        setobj(L, uv->v, rc);
+        luaC_barrier(L, uv, rc);
+      )
       vmcase(OP_GETTABUP,
         int b = GETARG_B(i);
         Protect(luaV_gettable(L, cl->upvals[b]->v, RKC(i), ra));
-      )
-      vmcase(OP_GETTABLE,
-        Protect(luaV_gettable(L, RB(i), RKC(i), ra));
       )
       vmcase(OP_SETTABUP,
         int a = GETARG_A(i);
         Protect(luaV_settable(L, cl->upvals[a]->v, RKB(i), RKC(i)));
       )
-      vmcase(OP_SETUPVAL,
-        UpVal *uv = cl->upvals[GETARG_B(i)];
-        setobj(L, uv->v, ra);
-        luaC_barrier(L, uv, ra);
+      vmcase(OP_GETTABLE,
+        Protect(luaV_gettable(L, RB(i), RKC(i), ra));
       )
       vmcase(OP_SETTABLE,
         Protect(luaV_settable(L, ra, RKB(i), RKC(i)));

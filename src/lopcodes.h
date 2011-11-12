@@ -171,13 +171,12 @@ OP_LOADK,/*	A Bx	R(A) := Kst(Bx)					*/
 OP_LOADKX,/*	A 	R(A) := Kst(extra arg)				*/
 OP_LOADBOOL,/*	A B C	R(A) := (Bool)B; if (C) pc++			*/
 OP_LOADNIL,/*	A B	R(A), R(A+1), ..., R(A+B) := nil		*/
+
 OP_GETUPVAL,/*	A B	R(A) := UpValue[B]				*/
-
+OP_SETUPVAL,/*	A C	UpValue[A] := RK(C)				*/
 OP_GETTABUP,/*	A B C	R(A) := UpValue[B][RK(C)]			*/
-OP_GETTABLE,/*	A B C	R(A) := R(B)[RK(C)]				*/
-
 OP_SETTABUP,/*	A B C	UpValue[A][RK(B)] := RK(C)			*/
-OP_SETUPVAL,/*	A B	UpValue[B] := R(A)				*/
+OP_GETTABLE,/*	A B C	R(A) := R(B)[RK(C)]				*/
 OP_SETTABLE,/*	A B C	R(A)[RK(B)] := RK(C)				*/
 
 OP_NEWTABLE,/*	A B C	R(A) := {} (size = B,C)				*/

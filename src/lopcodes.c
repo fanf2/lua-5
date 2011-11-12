@@ -20,10 +20,10 @@ LUAI_DDEF const char *const luaP_opnames[NUM_OPCODES+1] = {
   "LOADBOOL",
   "LOADNIL",
   "GETUPVAL",
-  "GETTABUP",
-  "GETTABLE",
-  "SETTABUP",
   "SETUPVAL",
+  "GETTABUP",
+  "SETTABUP",
+  "GETTABLE",
   "SETTABLE",
   "NEWTABLE",
   "SELF",
@@ -74,10 +74,10 @@ LUAI_DDEF const lu_byte luaP_opmodes[NUM_OPCODES] = {
  ,opmode(0, 1, OpArgU, OpArgU, iABC)		/* OP_LOADBOOL */
  ,opmode(0, 1, OpArgU, OpArgN, iABC)		/* OP_LOADNIL */
  ,opmode(0, 1, OpArgU, OpArgN, iABC)		/* OP_GETUPVAL */
+ ,opmode(0, 0, OpArgN, OpArgR, iABC)		/* OP_SETUPVAL */
  ,opmode(0, 1, OpArgU, OpArgK, iABC)		/* OP_GETTABUP */
- ,opmode(0, 1, OpArgR, OpArgK, iABC)		/* OP_GETTABLE */
  ,opmode(0, 0, OpArgK, OpArgK, iABC)		/* OP_SETTABUP */
- ,opmode(0, 0, OpArgU, OpArgN, iABC)		/* OP_SETUPVAL */
+ ,opmode(0, 1, OpArgR, OpArgK, iABC)		/* OP_GETTABLE */
  ,opmode(0, 0, OpArgK, OpArgK, iABC)		/* OP_SETTABLE */
  ,opmode(0, 1, OpArgU, OpArgU, iABC)		/* OP_NEWTABLE */
  ,opmode(0, 1, OpArgR, OpArgK, iABC)		/* OP_SELF */

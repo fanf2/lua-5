@@ -318,8 +318,10 @@ static void PrintCode(const Proto* f)
     printf("\t; "); PrintConstant(f,bx);
     break;
    case OP_GETUPVAL:
-   case OP_SETUPVAL:
     printf("\t; %s",UPVALNAME(b));
+    break;
+   case OP_SETUPVAL:
+    printf("\t; %s",UPVALNAME(a));
     break;
    case OP_GETTABUP:
     printf("\t; %s",UPVALNAME(b));
