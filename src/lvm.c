@@ -526,6 +526,15 @@ void luaV_finishOp (lua_State *L) {
         else { Protect(luaV_arith(L, ra, rb, rc, tm)); } }
 
 
+#define unary_op(op,tm) { \
+        TValue *rb = RB(i); \
+        if (ttisnumber(rb)) {			       \
+          lua_Number nb = nvalue(rb); \
+          setnvalue(ra, op(L, nb)); \
+        } \
+        else { Protect(luaV_arith(L, ra, rb, rb, tm)); } }
+
+
 #define update_op(op,tm) { \
         TValue *rb = RKB(i); \
         if (ttisnumber(ra) && ttisnumber(rb)) { \
@@ -646,15 +655,11 @@ void luaV_execute (lua_State *L) {
       vmcase(OP_POW,
         arith_op(luai_numpow, TM_POW);
       )
+      vmcase(OP_UNP,
+        unary_op(luai_numunp, TM_UNP);
+      )
       vmcase(OP_UNM,
-        TValue *rb = RB(i);
-        if (ttisnumber(rb)) {
-          lua_Number nb = nvalue(rb);
-          setnvalue(ra, luai_numunm(L, nb));
-        }
-        else {
-          Protect(luaV_arith(L, ra, rb, rb, TM_UNM));
-        }
+        unary_op(luai_numunm, TM_UNM);
       )
       vmcase(OP_NOT,
         TValue *rb = RB(i);

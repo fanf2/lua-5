@@ -430,6 +430,7 @@
 #define luai_numsub(L,a,b)	((a)-(b))
 #define luai_nummul(L,a,b)	((a)*(b))
 #define luai_numdiv(L,a,b)	((a)/(b))
+#define luai_numunp(L,a)	(+(a))
 #define luai_numunm(L,a)	(-(a))
 #define luai_numeq(a,b)		((a)==(b))
 #define luai_numlt(L,a,b)	((a)<(b))

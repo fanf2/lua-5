@@ -189,6 +189,7 @@ OP_MUL,/*	A B C	R(A) := RK(B) * RK(C)				*/
 OP_DIV,/*	A B C	R(A) := RK(B) / RK(C)				*/
 OP_MOD,/*	A B C	R(A) := RK(B) % RK(C)				*/
 OP_POW,/*	A B C	R(A) := RK(B) ^ RK(C)				*/
+OP_UNP,/*	A B	R(A) := +R(B)					*/
 OP_UNM,/*	A B	R(A) := -R(B)					*/
 OP_NOT,/*	A B	R(A) := not R(B)				*/
 OP_LEN,/*	A B	R(A) := length of R(B)				*/

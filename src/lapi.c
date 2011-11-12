@@ -284,9 +284,9 @@ LUA_API void  lua_arith (lua_State *L, int op) {
   StkId o1;  /* 1st operand */
   StkId o2;  /* 2nd operand */
   lua_lock(L);
-  if (op != LUA_OPUNM) /* all other operations expect two operands */
+  if (op != LUA_OPUNP && op != LUA_OPUNM) /* others expect two operands */
     api_checknelems(L, 2);
-  else {  /* for unary minus, add fake 2nd operand */
+  else {  /* for unary plus and minus, add fake 2nd operand */
     api_checknelems(L, 1);
     setobjs2s(L, L->top, L->top - 1);
     L->top++;

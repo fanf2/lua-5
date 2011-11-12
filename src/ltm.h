@@ -28,6 +28,7 @@ typedef enum {
   TM_DIV,
   TM_MOD,
   TM_POW,
+  TM_UNP,
   TM_UNM,
   TM_LT,
   TM_LE,
